@@ -22,7 +22,7 @@ ROOT_PATH = Path(__file__).resolve().parents[1]
 if str(ROOT_PATH) not in sys.path:
 	sys.path.insert(0, str(ROOT_PATH))
 
-from notebooks import numerical as module
+from temp_files import numerical as module
 
 
 def test_validacion_de_inputs_correcta():
