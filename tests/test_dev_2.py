@@ -158,6 +158,18 @@ def test_get_features_num_regression_retorna_vacia_con_columna_todo_nulos():
 
 	assert result == []
 
+def test_get_features_num_regression_datos_incorrectos():
+    """Caso de error: entradas inválidas deben provocar `None`.
+
+    Se comprueba que un objeto que no es DataFrame, una columna inexistente y un
+    umbral fuera de rango sean rechazados de forma explícita.
+    """
+    df = pd.DataFrame({"x": [1, 2, 3], "target": [1, 2, 3]})
+
+    assert module.get_features_num_regression([1, 2, 3], "target", 0.5) is None
+    assert module.get_features_num_regression(df, "missing", 0.5) is None
+    assert module.get_features_num_regression(df, "target", 1.5) is None
+
 
 def test_plot_features_num_regression_accepts_default_thresholds():
 	"""Caso correcto: la función selecciona y representa las columnas esperadas.
