@@ -13,8 +13,8 @@ def get_features_cat_regression(
     Identifica variables categóricas significativamente relacionadas
     con una variable target numérica mediante tests estadísticos.
 
-    - 2 categorías → Mann-Whitney U
-    - >2 categorías → ANOVA de un factor
+    - 2 categorías: Mann-Whitney U
+    - >2 categorías: ANOVA de un factor
     """
 
     # -------------------------
@@ -116,8 +116,8 @@ def plot_features_cat_regression(
     del DataFrame como candidatas.
 
     El test estadístico aplicado es:
-    - 2 categorías  → Mann-Whitney U
-    - >2 categorías → ANOVA de un factor
+    - 2 categorías: Mann-Whitney U
+    - >2 categorías: ANOVA de un factor
 
     Parámetros
     ----------
@@ -173,27 +173,24 @@ def plot_features_cat_regression(
     for col in columns:
         if col not in df.columns:
             continue
-
-        groups = df[col].dropna().unique()
-        if len(groups) < 2:
+        categories = df[col].dropna().unique()
+        if len(categories) < 2:
             continue
-
-        if len(groups) == 2:
-            group1 = df[df[col] == groups[0]][target_col].dropna()
-            group2 = df[df[col] == groups[1]][target_col].dropna()
+        if len(categories) == 2:
+            group1 = df[df[col] == categories[0]][target_col].dropna()
+            group2 = df[df[col] == categories[1]][target_col].dropna()
             if len(group1) == 0 or len(group2) == 0:
                 continue
             _, p = mannwhitneyu(group1, group2, alternative="two-sided")
         else:
             samples = []
-            for g in groups:
-                s = df[df[col] == g][target_col].dropna()
-                if len(s) > 0:
-                    samples.append(s)
+            for category in categories:
+                sample = df[df[col] == category][target_col].dropna()
+                if len(sample) > 0:
+                    samples.append(sample)
             if len(samples) < 2:
                 continue
             _, p = f_oneway(*samples)
-
         if p < pvalue:
             selected_features.append(col)
 
@@ -208,9 +205,9 @@ def plot_features_cat_regression(
         # una figura independiente por cada variable significativa
         for col in selected_features:
             fig, ax = plt.subplots(figsize=(8, 4))
-            for g in df[col].dropna().unique():
-                data = df[df[col] == g][target_col].dropna()
-                ax.hist(data, bins=15, alpha=0.5, label=str(g))
+            for category in df[col].dropna().unique():
+                data = df[df[col] == category][target_col].dropna()
+                ax.hist(data, bins=15, alpha=0.5, label=str(category))
             ax.set_title(col, fontsize=11)
             ax.set_xlabel(target_col)
             ax.set_ylabel("Frecuencia")
@@ -226,23 +223,21 @@ def plot_features_cat_regression(
         axes = np.array(axes).flatten()
 
         for i, col in enumerate(selected_features):
-            for g in df[col].dropna().unique():
-                data = df[df[col] == g][target_col].dropna()
-                axes[i].hist(data, bins=15, alpha=0.5, label=str(g))
+            for category in df[col].dropna().unique():
+                data = df[df[col] == category][target_col].dropna()
+                axes[i].hist(data, bins=15, alpha=0.5, label=str(category))
             axes[i].set_title(col, fontsize=11)
             axes[i].set_xlabel(target_col)
             axes[i].set_ylabel("Frecuencia")
             axes[i].legend(title=col)
 
         # ocultar subplots vacíos si el número de variables es impar
-        for j in range(i + 1, len(axes)):
-            axes[j].set_visible(False)
-
+        for empty_ax_idx in range(i + 1, len(axes)):
+            axes[empty_ax_idx].set_visible(False)
         fig.suptitle(
             f"Variables categóricas significativas vs {target_col}",
             fontsize=13,
             fontweight="bold"
         )
         plt.tight_layout()
-
     return selected_features
