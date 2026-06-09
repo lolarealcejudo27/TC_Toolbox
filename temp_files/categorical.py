@@ -39,7 +39,7 @@ def get_features_cat_regression(
     # -------------------------
     # SELECCIÓN DE VARIABLES CATEGÓRICAS
     # -------------------------
-    cat_cols = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+    cat_cols = df.select_dtypes(include=["str", "category", "bool"]).columns.tolist()
     if target_col in cat_cols:
         cat_cols.remove(target_col)
 
@@ -161,7 +161,7 @@ def plot_features_cat_regression(
     # SELECCIÓN DE COLUMNAS CANDIDATAS
     # -------------------------
     if not columns:
-        columns = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+        columns = df.select_dtypes(include=["str", "category", "bool"]).columns.tolist()
         if target_col in columns:
             columns.remove(target_col)
 

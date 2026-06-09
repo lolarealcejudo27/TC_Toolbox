@@ -15,7 +15,7 @@ Ejecutar desde la raíz del repo:
 import pandas as pd
 import pytest
 
-from toolbox_ml.eda.core import describe_df, tipifica_variables
+from toolbox_ml.eda.core_dev1 import describe_df, tipifica_variables
 
 
 # ---------------------------------------------------------------------------

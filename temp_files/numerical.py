@@ -22,6 +22,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr
+from toolbox_ml.eda.core_dev1 import tipifica_variables
 
 
 def _validate_regression_inputs(
@@ -84,16 +85,6 @@ def _validate_regression_inputs(
 
 	return True
 
-
-def _candidate_numeric_columns(df: pd.DataFrame, target_col: str) -> list[str]:
-	"""Devuelve las columnas numéricas que se pueden comparar con el objetivo.
-
-	La propia columna objetivo se elimina de la lista de candidatas porque el
-	objetivo es descubrir variables explicativas, no incluir la variable
-	respuesta en la salida.
-	"""
-	numeric_columns = df.select_dtypes(include="number").columns.tolist()
-	return [column for column in numeric_columns if column != target_col]
 
 
 def _pearson_correlation_filter(
@@ -192,8 +183,19 @@ def get_features_num_regression(
 	if not _validate_regression_inputs(df, target_col, umbral_corr, pvalue):
 		return None
 
-	# Partimos de todas las columnas numéricas salvo el propio objetivo.
-	candidate_columns = _candidate_numeric_columns(df, target_col)
+	# Obtenemos la tipificación sugerida por la función compartida. Usamos
+	# umbrales por defecto razonables: `umbral_categoria=3` y
+	# `umbral_continua=50`. Solo aceptamos las variables marcadas como
+	# "Numérica ..." y que además tengan un dtype numérico en el DataFrame.
+	tip = tipifica_variables(df, umbral_categoria=3, umbral_continua=50)
+	if tip is None:
+		candidate_columns = []
+	else:
+		candidate_columns = [
+			col
+			for col in tip.loc[tip["tipo_sugerido"].str.startswith("Numérica"), "nombre_variable"].tolist()
+			if col in df.columns and col != target_col and pd.api.types.is_numeric_dtype(df[col])
+		]
 	# Delegamos el cálculo y el filtrado reales en la ayuda interna para poder
 	# reutilizar exactamente la misma lógica en la función de visualización.
 	return _pearson_correlation_filter(
@@ -262,9 +264,17 @@ def plot_features_num_regression(
 			and pd.api.types.is_numeric_dtype(df[column])
 		]
 	else:
-		# En caso contrario, usamos la misma lógica de descubrimiento automático
-		# que el selector de regresión.
-		candidate_columns = _candidate_numeric_columns(df, target_col)
+		# En caso contrario, usamos la tipificación compartida para descubrir
+		# candidatas automáticamente.
+		tip = tipifica_variables(df, umbral_categoria=3, umbral_continua=50)
+		if tip is None:
+			candidate_columns = []
+		else:
+			candidate_columns = [
+				col
+				for col in tip.loc[tip["tipo_sugerido"].str.startswith("Numérica"), "nombre_variable"].tolist()
+				if col in df.columns and col != target_col and pd.api.types.is_numeric_dtype(df[col])
+			]
 
 	# Reutilizamos exactamente las mismas reglas de filtrado que la función sin
 	# visualización.

@@ -59,59 +59,6 @@ def test_validacion_de_inputs_datos_incorrectos():
 	assert module._validate_regression_inputs(df, "target", 1.5, 0.05) is False
 
 
-def test__candidate_numeric_columns_identifica_columnas_numericas_correctamente():
-	"""Caso correcto: la función identifica correctamente las columnas numéricas.
-
-	Se comprueba que, dado un DataFrame con una mezcla de tipos de datos, la
-	función devuelve solo los nombres de las columnas numéricas, excluyendo el
-	objetivo.
-	"""
-	df = pd.DataFrame(
-		{
-			"num1": [1.0, 2.0, 3.0],
-			"num2": [4.0, 5.0, 6.0],
-			"target": [7.0, 8.0, 9.0],
-			"category": ["a", "b", "c"],
-		}
-	)
-
-	result = module._candidate_numeric_columns(df, "target")
-
-	assert set(result) == {"num1", "num2"}
-
-
-def test__candidate_numeric_columns_retorna_vacia_con_dataframe_sin_columnas_numericas():
-	"""Caso límite: un DataFrame sin columnas numéricas no ofrece candidatos.
-
-	La función debe devolver una lista vacía cuando no existen columnas numéricas
-	que analizar, incluso si el DataFrame tiene otras columnas de tipo diferente.
-	"""
-	df = pd.DataFrame(
-		{
-			"category1": ["a", "b", "c"],
-			"category2": ["d", "e", "f"],
-			"target": [1.0, 2.0, 3.0],
-		}
-	)
-
-	result = module._candidate_numeric_columns(df, "target")
-
-	assert result == []
-
-
-def test__candidate_numeric_columns_retorna_vacia_con_dataframe_vacio():
-	"""Caso límite: un DataFrame vacío no ofrece columnas para analizar.
-
-	La función debe devolver una lista vacía cuando el DataFrame no contiene
-	ninguna columna, ni siquiera el objetivo.
-	"""
-	df = pd.DataFrame()
-
-	result = module._candidate_numeric_columns(df, "target")
-
-	assert result == []
-
-
 def test_get_features_num_regression_filters_by_correlation():
 	"""Caso correcto: devuelve las variables numéricas suficientemente correladas.
 
