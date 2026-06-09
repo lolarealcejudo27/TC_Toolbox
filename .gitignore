@@ -205,6 +205,7 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-# Ignorar cualquier archivo o carpeta que contenga la palabra 'prueba'
-*prueba*
+# Ignorar carpetas o archivos que empiecen por prueba solo en la raíz
+/prueba*
+/*prueba*
 
