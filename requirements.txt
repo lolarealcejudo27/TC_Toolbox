@@ -1,5 +1,7 @@
+setuptools
 pandas
 numpy
 scipy
 matplotlib
 seaborn
+ipykernel
