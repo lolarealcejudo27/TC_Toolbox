@@ -254,16 +254,6 @@ def _validate_regression_inputs(
 	return True
 
 
-def _candidate_numeric_columns(df: pd.DataFrame, target_col: str) -> list[str]:
-	"""Devuelve las columnas numéricas que se pueden comparar con el objetivo.
-
-	La propia columna objetivo se elimina de la lista de candidatas porque el
-	objetivo es descubrir variables explicativas, no incluir la variable
-	respuesta en la salida.
-	"""
-	numeric_columns = df.select_dtypes(include="number").columns.tolist()
-	return [column for column in numeric_columns if column != target_col]
-
 
 def _pearson_correlation_filter(
 	df: pd.DataFrame,
@@ -272,53 +262,22 @@ def _pearson_correlation_filter(
 	umbral_corr: float,
 	pvalue: float = None,
 ) -> list[str]:
-	"""Filtra columnas candidatas usando correlación de Pearson y p-valor opcional.
-
-	Para cada columna, la función elimina de forma conjunta los valores nulos
-	con respecto al objetivo, calcula la correlación de Pearson y su p-valor, y
-	conserva la columna solo si se cumplen ambas condiciones:
-
-	* `abs(r) >= umbral_corr`
-	* `pvalue is None` o `p_val < pvalue`
-
-	La salida mantiene el orden original de las columnas candidatas.
-	"""
+	"""Filtra columnas candidatas usando correlación de Pearson y p-valor opcional."""
 	selected_columns: list[str] = []
 
-	# Filtramos cada columna de forma independiente para que los nulos o un
-	# fallo en una candidata no afecten al resto de la lista.
 	for column in candidate_columns:
-		# Pearson requiere pares alineados y sin nulos. Eliminar filas por pares
-		# evita contaminar el cálculo con datos ausentes.
 		pair = df[[column, target_col]].dropna()
 		if len(pair) < 2:
 			continue
-
-		# La ayuda de scipy devuelve tanto el coeficiente de correlación como el
-		# p-valor del contraste de hipótesis de correlación nula.
 		try:
 			corr, p_val = pearsonr(pair[column], pair[target_col])
 		except Exception:
-			# Una serie mal formada o constante puede provocar una excepción en
-			# scipy; lo más seguro es omitir esa variable y continuar.
 			continue
-
-		# Los NaN suelen indicar una correlación inválida o degenerada.
-		if pd.isna(corr) or pd.isna(p_val):
+		if pd.isna(corr) or abs(corr) < umbral_corr:
 			continue
-
-		# Aplicamos el umbral de correlación absoluta pedido por el usuario.
-		if abs(corr) < umbral_corr:
-			continue
-
-		# Aplicamos el filtro opcional de significación estadística cuando se ha
-		# solicitado.
 		if pvalue is not None and p_val >= pvalue:
 			continue
-
-		# Conservamos la variable solo cuando cumple todas las condiciones.
 		selected_columns.append(column)
-
 	return selected_columns
 
 
@@ -327,6 +286,8 @@ def get_features_num_regression(
 	target_col: str,
 	umbral_corr: float,
 	pvalue: float = None,
+	umbral_categoria: int = 4,
+	umbral_continua: float = 10,
 ) -> list:
 	"""Devuelve predictores numéricos correlados con un objetivo numérico.
 
@@ -349,6 +310,12 @@ def get_features_num_regression(
 		Umbral de correlación absoluta en el rango [0, 1].
 	pvalue:
 		Umbral opcional de p-valor en el rango [0, 1].
+	umbral_categoria:
+		Umbral de cardinalidad para `tipifica_variables`. Columnas con menos
+		valores únicos se consideran categóricas.
+	umbral_continua:
+		Umbral de porcentaje de cardinalidad para `tipifica_variables`. Por
+		encima de este valor una variable numérica se considera continua.
 
 	Devuelve
 	--------
@@ -361,8 +328,12 @@ def get_features_num_regression(
 	if not _validate_regression_inputs(df, target_col, umbral_corr, pvalue):
 		return None
 
-	# Partimos de todas las columnas numéricas salvo el propio objetivo.
-	candidate_columns = _candidate_numeric_columns(df, target_col)
+	tipos = tipifica_variables(df, umbral_categoria, umbral_continua)
+	candidate_columns = tipos.loc[
+		tipos["tipo_sugerido"].isin(["Numérica Continua", "Numérica Discreta"])
+		& (tipos["nombre_variable"] != target_col),
+		"nombre_variable",
+	].tolist()
 	# Delegamos el cálculo y el filtrado reales en la ayuda interna para poder
 	# reutilizar exactamente la misma lógica en la función de visualización.
 	return _pearson_correlation_filter(
@@ -380,19 +351,16 @@ def plot_features_num_regression(
 	columns: list = [],
 	umbral_corr: float = 0,
 	pvalue: float = None,
+	umbral_categoria: int = 4,
+	umbral_continua: float = 10,
+	with_individual_plot: bool = False,
 ) -> list:
-	"""Representa pairplots de las variables numéricas seleccionadas y las devuelve.
+	"""Representa scatter plots de las variables numéricas seleccionadas frente a target_col.
 
 	La fase de selección sigue exactamente la misma lógica de correlación que
 	`get_features_num_regression`. La única diferencia es que esta función puede
 	limitar el conjunto de candidatas mediante el argumento opcional `columns` y,
-	además, representa el resultado con pairplots.
-
-	Cuando la lista final de variables contiene más de cinco elementos, la
-	función la divide en bloques de como máximo cuatro variables seleccionadas en
-	cada iteración y siempre incluye `target_col` en cada gráfico. Así se
-	mantiene cada visualización legible sin perder cobertura del conjunto total de
-	columnas seleccionadas.
+	además, representa el resultado en una figura con subplots.
 
 	Parámetros
 	----------
@@ -407,7 +375,15 @@ def plot_features_num_regression(
 		Umbral de correlación absoluta.
 	pvalue:
 		Umbral opcional de p-valor.
-
+	umbral_categoria:
+		Umbral de cardinalidad para `tipifica_variables`. Columnas con menos
+		valores únicos se consideran categóricas.
+	umbral_continua:
+		Umbral de porcentaje de cardinalidad para `tipifica_variables`. Por
+		encima de este valor una variable numérica se considera continua.
+	with_individual_plot:
+		Si False (por defecto), todas las variables se representan en una única
+		figura con subplots. Si True, cada variable genera su propia figura.
 	Devuelve
 	--------
 	list
@@ -419,21 +395,19 @@ def plot_features_num_regression(
 	if not _validate_regression_inputs(df, target_col, umbral_corr, pvalue):
 		return None
 
-	# Si el usuario proporciona una lista explícita de candidatas, la respetamos,
-	# pero seguimos quedándonos solo con columnas numéricas distintas del
-	# objetivo.
+	tipos = tipifica_variables(df, umbral_categoria, umbral_continua)
+	numeric_cols = set(
+		tipos.loc[
+			tipos["tipo_sugerido"].isin(["Numérica Continua", "Numérica Discreta"])
+			& (tipos["nombre_variable"] != target_col),
+			"nombre_variable",
+		].tolist()
+	)
+
 	if columns:
-		candidate_columns = [
-			column
-			for column in columns
-			if column in df.columns
-			and column != target_col
-			and pd.api.types.is_numeric_dtype(df[column])
-		]
+		candidate_columns = [c for c in columns if c in numeric_cols]
 	else:
-		# En caso contrario, usamos la misma lógica de descubrimiento automático
-		# que el selector de regresión.
-		candidate_columns = _candidate_numeric_columns(df, target_col)
+		candidate_columns = [c for c in tipos["nombre_variable"] if c in numeric_cols]
 
 	# Reutilizamos exactamente las mismas reglas de filtrado que la función sin
 	# visualización.
@@ -448,17 +422,41 @@ def plot_features_num_regression(
 	if not selected_columns:
 		return []
 
-	# Construimos grupos manejables para que conjuntos grandes de variables no
-	# terminen en un único pairplot ilegible.
-	groups = [selected_columns[index : index + 4] for index in range(0, len(selected_columns), 4)]
+	n = len(selected_columns)
+	palette = sns.color_palette("husl", n_colors=n)
 
-	for group in groups:
-		# Pairplot necesita que la columna objetivo esté presente en cada
-		# subconjunto representado.
-		sns.pairplot(df[[target_col] + group].dropna())
-		# Mostramos la figura explícitamente para que el efecto visual sea visible
-		# en uso interactivo y en cuadernos.
-		plt.show()
+	if with_individual_plot:
+		for i, col in enumerate(selected_columns):
+			fig, ax = plt.subplots(figsize=(4, 4))
+			data = df[[target_col, col]].dropna()
+			ax.scatter(data[col], data[target_col], alpha=0.5, color=palette[i], edgecolors="none")
+			ax.set_title(col, fontsize=11)
+			ax.set_xlabel(col)
+			ax.set_ylabel(target_col)
+			fig.suptitle(f"{col} vs {target_col}", fontsize=13, fontweight="bold")
+			plt.tight_layout()
+	else:
+		ncols = min(2, n)
+		nrows = (n + ncols - 1) // ncols
+		fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(4 * ncols, 4 * nrows))
+		axes = np.array(axes).flatten()
+
+		for i, col in enumerate(selected_columns):
+			data = df[[target_col, col]].dropna()
+			axes[i].scatter(data[col], data[target_col], alpha=0.5, color=palette[i], edgecolors="none")
+			axes[i].set_title(col, fontsize=11)
+			axes[i].set_xlabel(col)
+			axes[i].set_ylabel(target_col)
+
+		for empty_ax_idx in range(i + 1, len(axes)):
+			axes[empty_ax_idx].set_visible(False)
+
+		fig.suptitle(
+			f"Variables numéricas seleccionadas vs {target_col}",
+			fontsize=13,
+			fontweight="bold",
+		)
+		plt.tight_layout()
 
 	return selected_columns
 
@@ -498,7 +496,7 @@ def get_features_cat_regression(
     # -------------------------
     # SELECCIÓN DE VARIABLES CATEGÓRICAS
     # -------------------------
-    cat_cols = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+    cat_cols = df.select_dtypes(include=["str", "category", "bool"]).columns.tolist()
     if target_col in cat_cols:
         cat_cols.remove(target_col)
 
@@ -620,7 +618,7 @@ def plot_features_cat_regression(
     # SELECCIÓN DE COLUMNAS CANDIDATAS
     # -------------------------
     if not columns:
-        columns = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+        columns = df.select_dtypes(include=["str", "category", "bool"]).columns.tolist()
         if target_col in columns:
             columns.remove(target_col)
 
