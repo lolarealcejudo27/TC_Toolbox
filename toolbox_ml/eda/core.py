@@ -4,21 +4,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr, mannwhitneyu, f_oneway
 
-
-"""
-core_dev1.py — Funciones de EDA de Developer 1.
-
-Contiene las dos funciones asignadas a Developer 1:
-    - describe_df
-    - tipifica_variables
-
-NOTA DE INTEGRACIÓN (Scrum Master): el contenido de este módulo está pensado
-para fusionarse tal cual en `toolbox_ml/eda/core.py`. Los tests de
-`tests/test_core_dev1.py` ya importan desde `toolbox_ml.eda.core`, de modo que
-pasarán a verde en cuanto estas funciones se muevan a `core.py`.
-"""
-
-
 def describe_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Genera un resumen estadístico descriptivo de un DataFrame.
@@ -355,12 +340,12 @@ def plot_features_num_regression(
 	umbral_continua: float = 10,
 	with_individual_plot: bool = False,
 ) -> list:
-	"""Representa scatter plots de las variables numéricas seleccionadas frente a target_col.
+	"""Representa pairplots de las variables numéricas seleccionadas junto a target_col.
 
 	La fase de selección sigue exactamente la misma lógica de correlación que
 	`get_features_num_regression`. La única diferencia es que esta función puede
 	limitar el conjunto de candidatas mediante el argumento opcional `columns` y,
-	además, representa el resultado en una figura con subplots.
+	además, representa el resultado como un pairplot de seaborn.
 
 	Parámetros
 	----------
@@ -382,8 +367,9 @@ def plot_features_num_regression(
 		Umbral de porcentaje de cardinalidad para `tipifica_variables`. Por
 		encima de este valor una variable numérica se considera continua.
 	with_individual_plot:
-		Si False (por defecto), todas las variables se representan en una única
-		figura con subplots. Si True, cada variable genera su propia figura.
+		Si False (por defecto), un único pairplot con todas las variables
+		seleccionadas más target_col. Si True, un pairplot por cada variable
+		emparejada individualmente con target_col.
 	Devuelve
 	--------
 	list
@@ -409,8 +395,6 @@ def plot_features_num_regression(
 	else:
 		candidate_columns = [c for c in tipos["nombre_variable"] if c in numeric_cols]
 
-	# Reutilizamos exactamente las mismas reglas de filtrado que la función sin
-	# visualización.
 	selected_columns = _pearson_correlation_filter(
 		df=df,
 		target_col=target_col,
@@ -422,37 +406,36 @@ def plot_features_num_regression(
 	if not selected_columns:
 		return []
 
-	n = len(selected_columns)
-	palette = sns.color_palette("husl", n_colors=n)
+	palette = sns.color_palette("husl", n_colors=len(selected_columns))
+	scatter_kws = {"alpha": 0.5, "edgecolors": "none", "s": 20}
+	diag_kws = {"fill": True, "alpha": 0.4}
 
 	if with_individual_plot:
 		for i, col in enumerate(selected_columns):
-			fig, ax = plt.subplots(figsize=(4, 4))
 			data = df[[target_col, col]].dropna()
-			ax.scatter(data[col], data[target_col], alpha=0.5, color=palette[i], edgecolors="none")
-			ax.set_title(col, fontsize=11)
-			ax.set_xlabel(col)
-			ax.set_ylabel(target_col)
-			fig.suptitle(f"{col} vs {target_col}", fontsize=13, fontweight="bold")
+			g = sns.pairplot(
+				data,
+				diag_kind="kde",
+				plot_kws={**scatter_kws, "color": palette[i]},
+				diag_kws={**diag_kws, "color": palette[i]},
+			)
+			g.figure.suptitle(f"{col} vs {target_col}", y=1.02, fontsize=13, fontweight="bold")
 			plt.tight_layout()
 	else:
-		ncols = min(2, n)
-		nrows = (n + ncols - 1) // ncols
-		fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(4 * ncols, 4 * nrows))
-		axes = np.array(axes).flatten()
-
-		for i, col in enumerate(selected_columns):
-			data = df[[target_col, col]].dropna()
-			axes[i].scatter(data[col], data[target_col], alpha=0.5, color=palette[i], edgecolors="none")
-			axes[i].set_title(col, fontsize=11)
-			axes[i].set_xlabel(col)
-			axes[i].set_ylabel(target_col)
-
-		for empty_ax_idx in range(i + 1, len(axes)):
-			axes[empty_ax_idx].set_visible(False)
-
-		fig.suptitle(
+		plot_cols = [target_col] + selected_columns
+		data = df[plot_cols].dropna()
+		g = sns.pairplot(
+			data,
+			diag_kind="kde",
+			plot_kws={**scatter_kws, "color": "#4C72B0"},
+			diag_kws={**diag_kws, "color": "#D8A61B"},
+		)
+		for ax in g.axes.flatten():
+			if ax is not None:
+				ax.set_facecolor("#f9f9f9")
+		g.figure.suptitle(
 			f"Variables numéricas seleccionadas vs {target_col}",
+			y=1.02,
 			fontsize=13,
 			fontweight="bold",
 		)
