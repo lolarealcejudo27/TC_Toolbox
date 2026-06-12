@@ -4,21 +4,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr, mannwhitneyu, f_oneway
 
-
-"""
-core_dev1.py — Funciones de EDA de Developer 1.
-
-Contiene las dos funciones asignadas a Developer 1:
-    - describe_df
-    - tipifica_variables
-
-NOTA DE INTEGRACIÓN (Scrum Master): el contenido de este módulo está pensado
-para fusionarse tal cual en `toolbox_ml/eda/core.py`. Los tests de
-`tests/test_core_dev1.py` ya importan desde `toolbox_ml.eda.core`, de modo que
-pasarán a verde en cuanto estas funciones se muevan a `core.py`.
-"""
-
-
 def describe_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Genera un resumen estadístico descriptivo de un DataFrame.
